@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget // 👈 برای تنظیمات جدید کاتلین
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
@@ -9,7 +10,7 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    id("kotlin-android") // 👈 برگشت به حالت استاندارد
+    id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -23,16 +24,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions { // 👈 برگشت به حالت استاندارد
-        jvmTarget = "1.8"
-    }
+    // 👈 بخش kotlinOptions از اینجا حذف شد (چون منسوخ شده است)
 
     defaultConfig {
         applicationId = "ir.amirali.balebot" 
         minSdk = 23
         targetSdk = 34
-        versionCode = flutter.versionCode()
-        versionName = flutter.versionName()
+        // 👇 این دو خط اصلاح شدند (پرانتزها حذف شدند)
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     signingConfigs {
@@ -50,6 +50,13 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
         }
+    }
+}
+
+// 👇 بلوک جدید جایگزین kotlinOptions قدیمی شده است
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_1_8)
     }
 }
 
