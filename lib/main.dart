@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 void main() {
   runApp(const MyApp());
@@ -23,7 +24,8 @@ class MyApp extends StatelessWidget {
           seedColor: const Color(0xFF4A60FF),
           brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        textTheme: GoogleFonts.vazirmatnTextTheme(),
       ),
       home: const MainNavigationScreen(),
     );
@@ -31,42 +33,34 @@ class MyApp extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// مدل داده‌ها برای ذخیره ربات‌ها
+// مدل داده‌ها
 // ---------------------------------------------------------------------------
 class SavedBot {
   final String id;
-  final String trigger;
+  final String title;
   final String token;
-  final String response;
+  final String code;
   final String date;
 
   SavedBot({
     required this.id,
-    required this.trigger,
+    required this.title,
     required this.token,
-    required this.response,
+    required this.code,
     required this.date,
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'trigger': trigger,
-        'token': token,
-        'response': response,
-        'date': date,
+        'id': id, 'title': title, 'token': token, 'code': code, 'date': date,
       };
 
   factory SavedBot.fromJson(Map<String, dynamic> json) => SavedBot(
-        id: json['id'],
-        trigger: json['trigger'],
-        token: json['token'],
-        response: json['response'],
-        date: json['date'],
+        id: json['id'], title: json['title'], token: json['token'], code: json['code'], date: json['date'],
       );
 }
 
 // ---------------------------------------------------------------------------
-// صفحه اصلی با منوی پایین (۵ تب)
+// صفحه اصلی
 // ---------------------------------------------------------------------------
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -89,19 +83,58 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) => setState(() => _currentIndex = index),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.smart_toy), label: 'دستی'),
-          NavigationDestination(icon: Icon(Icons.auto_awesome), label: 'هوش مصنوعی'),
-          NavigationDestination(icon: Icon(Icons.folder_shared), label: 'ربات‌های من'),
-          NavigationDestination(icon: Icon(Icons.menu_book), label: 'آموزش‌ها'),
-          NavigationDestination(icon: Icon(Icons.help_outline), label: 'رفع مشکل'),
+          NavigationDestination(icon: Icon(Icons.smart_toy_outlined), selectedIcon: Icon(Icons.smart_toy), label: 'دستی'),
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome), label: 'هوش مصنوعی'),
+          NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder), label: 'ربات‌های من'),
+          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'آموزش‌ها'),
+          NavigationDestination(icon: Icon(Icons.help_outline), selectedIcon: Icon(Icons.help), label: 'رفع مشکل'),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ویجت مشترک برای نمایش کد
+// ---------------------------------------------------------------------------
+class CodeViewer extends StatelessWidget {
+  final String code;
+  final VoidCallback onCopy;
+  final bool isCopied;
+
+  const CodeViewer({super.key, required this.code, required this.onCopy, required this.isCopied});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(color: const Color(0xFF1E1E2E), borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: const BoxDecoration(color: Color(0xFF181825), borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+            child: Row(
+              children: [
+                const Text('worker.js', style: TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 13)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onCopy,
+                  icon: Icon(isCopied ? Icons.check_circle : Icons.copy, size: 16, color: isCopied ? Colors.greenAccent : Colors.blueAccent),
+                  label: Text(isCopied ? 'کپی شد!' : 'کپی کد', style: TextStyle(color: isCopied ? Colors.greenAccent : Colors.blueAccent, fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.all(16),
+            child: SelectableText(code, style: const TextStyle(fontFamily: 'monospace', color: Color(0xFFCDD6F4), fontSize: 13, height: 1.5)),
+          ),
         ],
       ),
     );
@@ -127,14 +160,19 @@ class _BotBuilderScreenState extends State<BotBuilderScreen> {
 
   Future<void> _launchUrl(String url) async {
     if (!await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: $url')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('خطا در باز کردن لینک')));
     }
   }
 
   void generateCode() {
+    if (tokenController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً ابتدا توکن ربات را وارد کنید.'), backgroundColor: Colors.orange));
+      return;
+    }
     final trigger = selectedTrigger.replaceAll('"', '\\"');
     final response = responseController.text.replaceAll('"', '\\"');
-    final token = tokenController.text.trim().isEmpty ? "YOUR_BOT_TOKEN" : tokenController.text.trim();
+    final token = tokenController.text.trim();
+
     final code = '''
 export default {
   async fetch(request, env, ctx) {
@@ -159,35 +197,31 @@ export default {
   }
 
   Future<void> _saveBot() async {
-    if (generatedCode.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ابتدا کد ربات را بسازید!')));
-      return;
-    }
+    if (generatedCode.isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     final savedBots = prefs.getStringList('saved_bots') ?? [];
-    final botData = jsonEncode({
+    savedBots.add(jsonEncode({
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'trigger': selectedTrigger,
-      'token': tokenController.text,
-      'response': responseController.text,
+      'title': 'ربات دستی ($selectedTrigger)',
+      'token': tokenController.text.trim(),
+      'code': generatedCode,
       'date': DateTime.now().toIso8601String()
-    });
-    savedBots.add(botData);
+    }));
     await prefs.setStringList('saved_bots', savedBots);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات در «ربات‌های من» ذخیره شد 💾'), backgroundColor: Colors.green));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات ذخیره شد 💾'), backgroundColor: Colors.green));
   }
 
   void copyToClipboard(String text, {bool isWebhook = false}) async {
     await Clipboard.setData(ClipboardData(text: text));
     if (!isWebhook) setState(() => isCopied = true);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(isWebhook ? 'لینک اتصال کپی شد ✅' : 'کد کپی شد ✅'), 
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isWebhook ? 'لینک کپی شد ✅' : 'کد کپی شد ✅'), backgroundColor: Colors.green));
     if (!isWebhook) Future.delayed(const Duration(seconds: 2), () { if (mounted) setState(() => isCopied = false); });
+  }
+
+  @override
+  void dispose() {
+    tokenController.dispose(); responseController.dispose(); workerUrlController.dispose();
+    super.dispose();
   }
 
   @override
@@ -195,55 +229,70 @@ export default {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربات‌ساز دستی', style: TextStyle(fontWeight: FontWeight.bold)), 
-        centerTitle: true, 
-        backgroundColor: Colors.white, 
-        elevation: 0,
-        actions: [IconButton(onPressed: _saveBot, icon: const Icon(Icons.save, color: Color(0xFF4A60FF)), tooltip: 'ذخیره ربات')]
+        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
+        actions: [IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF4A60FF)))]
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
-          Card(elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Row(children: [Icon(Icons.smart_toy_outlined, color: Color(0xFF4A60FF), size: 28), SizedBox(width: 10), Text('تنظیمات ربات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))]),
-            const Divider(height: 30),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('۱. توکن ربات', style: TextStyle(fontWeight: FontWeight.w600)), TextButton.icon(onPressed: () => _launchUrl('https://ble.ir/botfather'), icon: const Icon(Icons.link, size: 16), label: const Text('گرفتن توکن', style: TextStyle(fontSize: 12)))]),
-            const SizedBox(height: 8),
-            TextField(controller: tokenController, decoration: _inputDecoration('123456789:ABCdefGHI...')),
-            const SizedBox(height: 20),
-            const Text('۲. شرط پاسخ', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(value: selectedTrigger, decoration: _inputDecoration(''), items: const [DropdownMenuItem(value: '/start', child: Text('/start')), DropdownMenuItem(value: 'سلام', child: Text('سلام')), DropdownMenuItem(value: 'قیمت', child: Text('قیمت'))], onChanged: (val) => setState(() => selectedTrigger = val!)),
-            const SizedBox(height: 20),
-            const Text('۳. متن پاسخ', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(controller: responseController, maxLines: 3, decoration: _inputDecoration('پاسخ...')),
-            const SizedBox(height: 24),
-            SizedBox(width: double.infinity, height: 52, child: FilledButton.icon(onPressed: generateCode, icon: const Icon(Icons.code), label: const Text('ساخت کد', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF4A60FF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
-          ]))),
+          Card(
+            elevation: 0, color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.settings, color: Color(0xFF4A60FF)), const SizedBox(width: 8),
+                const Text('تنظیمات ربات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Spacer(),
+                TextButton.icon(onPressed: () => _launchUrl('https://ble.ir/botfather'), icon: const Icon(Icons.link, size: 16), label: const Text('گرفتن توکن', style: TextStyle(fontSize: 12))),
+              ]),
+              const Divider(height: 24),
+              TextField(controller: tokenController, decoration: _inputDecoration('توکن ربات (مثلاً 123456:ABC...)')),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(value: selectedTrigger, decoration: _inputDecoration(''), items: const [
+                DropdownMenuItem(value: '/start', child: Text('پاسخ به /start')),
+                DropdownMenuItem(value: 'سلام', child: Text('پاسخ به سلام')),
+                DropdownMenuItem(value: 'قیمت', child: Text('پاسخ به قیمت')),
+              ], onChanged: (val) => setState(() => selectedTrigger = val!)),
+              const SizedBox(height: 16),
+              TextField(controller: responseController, maxLines: 3, decoration: _inputDecoration('متن پاسخ ربات...')),
+              const SizedBox(height: 24),
+              SizedBox(width: double.infinity, height: 48, child: FilledButton.icon(onPressed: generateCode, icon: const Icon(Icons.code), label: const Text('ساخت کد', style: TextStyle(fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF4A60FF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
+            ])),
+          ),
           const SizedBox(height: 20),
           if (generatedCode.isNotEmpty) ...[
-            Container(decoration: BoxDecoration(color: const Color(0xFF1E1E2E), borderRadius: BorderRadius.circular(16)), child: Column(children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: const BoxDecoration(color: Color(0xFF181825), borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))), child: Row(children: [const Text('worker.js', style: TextStyle(color: Colors.white70, fontFamily: 'monospace')), const Spacer(), TextButton.icon(onPressed: () => copyToClipboard(generatedCode), icon: Icon(isCopied ? Icons.check_circle : Icons.copy, size: 16, color: isCopied ? Colors.greenAccent : Colors.blueAccent), label: Text(isCopied ? 'کپی شد!' : 'کپی کد', style: TextStyle(color: isCopied ? Colors.greenAccent : Colors.blueAccent, fontSize: 13)))])),
-              SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.all(16), child: SelectableText(generatedCode, style: const TextStyle(fontFamily: 'monospace', color: Color(0xFFCDD6F4), fontSize: 13, height: 1.6))),
-            ])),
-            const SizedBox(height: 24),
-            const Text('🔗 اتصال نهایی (Webhook)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('آدرس سایت کلودفلر خود را پیست کنید:', style: TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 12),
-            TextField(controller: workerUrlController, decoration: _inputDecoration('https://your-bot.workers.dev'), onChanged: (_) => setState(() {})),
-            const SizedBox(height: 12),
-            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: (tokenController.text.isEmpty || workerUrlController.text.isEmpty) ? null : () { copyToClipboard('https://tapi.bale.ai/bot${tokenController.text.trim()}/setWebhook?url=${workerUrlController.text.trim()}', isWebhook: true); }, icon: const Icon(Icons.link), label: const Text('کپی لینک اتصال نهایی'), style: FilledButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 16)))),
+            CodeViewer(code: generatedCode, isCopied: isCopied, onCopy: () => copyToClipboard(generatedCode)),
+            const SizedBox(height: 20),
+            Card(
+              elevation: 0, color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+              child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('🔗 اتصال نهایی (Webhook)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(controller: workerUrlController, decoration: _inputDecoration('https://your-bot.workers.dev'), onChanged: (_) => setState(() {})),
+                const SizedBox(height: 12),
+                SizedBox(width: double.infinity, child: FilledButton.icon(
+                  onPressed: (tokenController.text.isEmpty || workerUrlController.text.isEmpty) ? null : () => copyToClipboard('https://tapi.bale.ai/bot${tokenController.text.trim()}/setWebhook?url=${workerUrlController.text.trim()}', isWebhook: true),
+                  icon: const Icon(Icons.link), label: const Text('کپی لینک اتصال'), style: FilledButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 14))
+                )),
+              ])),
+            )
           ],
         ]),
       ),
     );
   }
-  InputDecoration _inputDecoration(String hint) => InputDecoration(hintText: hint, filled: true, fillColor: Colors.grey.shade50, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)));
+
+  InputDecoration _inputDecoration(String hint) => InputDecoration(
+    hintText: hint, filled: true, fillColor: Colors.grey.shade50,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+  );
 }
 
 // ---------------------------------------------------------------------------
-// ۲. صفحه هوش مصنوعی (با تزریق توکن هوشمند)
+// ۲. صفحه هوش مصنوعی
 // ---------------------------------------------------------------------------
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({super.key});
@@ -252,11 +301,9 @@ class AIAssistantScreen extends StatefulWidget {
 }
 
 class _AIAssistantScreenState extends State<AIAssistantScreen> {
-  // 🔴 آدرس ورکر تستی (کاربر باید آدرس خودش را وارد کند)
   final TextEditingController workerUrlController = TextEditingController(text: 'https://your-worker-name.workers.dev/');
   final TextEditingController promptController = TextEditingController();
   final TextEditingController tokenController = TextEditingController();
-  
   String generatedCode = '';
   bool isLoading = false;
   bool isCopied = false;
@@ -264,140 +311,115 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   Future<void> generateWithAI() async {
     final url = workerUrlController.text.trim();
     final prompt = promptController.text.trim();
-
-    if (url.isEmpty || prompt.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً توضیحات ربات را وارد کنید.')));
-      return;
-    }
+    if (url.isEmpty || prompt.isEmpty) return;
 
     setState(() { isLoading = true; generatedCode = ''; });
-
     try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'prompt': prompt}),
-      ).timeout(const Duration(seconds: 60));
-
+      final response = await http.post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'prompt': prompt})).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
-        String rawCode = response.body;
-        // پاکسازی کد از بلاک‌های مارک‌داون
-        rawCode = rawCode.replaceAll('```javascript', '').replaceAll('```js', '').replaceAll('```', '').trim();
-        setState(() { generatedCode = rawCode; });
+        String rawCode = response.body.replaceAll('```javascript', '').replaceAll('```js', '').replaceAll('```', '').trim();
+        setState(() => generatedCode = rawCode);
       } else {
-        throw Exception('خطا در سرور: ${response.statusCode}');
+        throw Exception('خطا در سرور');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در ارتباط: $e'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: $e'), backgroundColor: Colors.red));
     } finally {
       setState(() => isLoading = false);
     }
   }
 
-  // 🪄 تابع هوشمند تزریق توکن
-  Future<void> injectTokenAndCopy() async {
+  Future<void> _saveBot() async {
+    if (generatedCode.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final savedBots = prefs.getStringList('saved_bots') ?? [];
+    savedBots.add(jsonEncode({
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': 'ربات هوش مصنوعی',
+      'token': tokenController.text.trim(),
+      'code': generatedCode,
+      'date': DateTime.now().toIso8601String()
+    }));
+    await prefs.setStringList('saved_bots', savedBots);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات AI ذخیره شد 💾'), backgroundColor: Colors.green));
+  }
+
+  void injectTokenAndCopy() {
     final token = tokenController.text.trim();
     if (token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً توکن ربات را وارد کنید.'), backgroundColor: Colors.orange));
       return;
     }
+    final finalCode = generatedCode.replaceAll('YOUR_BOT_TOKEN', token).replaceAll('YOUR_TOKEN', token).replaceAll('BOT_TOKEN', token);
+    Clipboard.setData(ClipboardData(text: finalCode));
+    setState(() => isCopied = true);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('توکن جایگزین و کد کپی شد ✅'), backgroundColor: Colors.green));
+    Future.delayed(const Duration(seconds: 2), () { if (mounted) setState(() => isCopied = false); });
+  }
 
-    String finalCode = generatedCode;
-    bool foundPlaceholder = false;
-
-    // بررسی کلمات مختلفی که هوش مصنوعی ممکن است استفاده کرده باشد
-    if (finalCode.contains('YOUR_BOT_TOKEN')) {
-      finalCode = finalCode.replaceAll('YOUR_BOT_TOKEN', token);
-      foundPlaceholder = true;
-    } else if (finalCode.contains('YOUR_TOKEN')) {
-      finalCode = finalCode.replaceAll('YOUR_TOKEN', token);
-      foundPlaceholder = true;
-    } else if (finalCode.contains('BOT_TOKEN')) {
-      // اگر کد مستقیماً BOT_TOKEN داشت، جایگزین می‌کنیم
-      finalCode = finalCode.replaceAll('BOT_TOKEN', token);
-      foundPlaceholder = true;
-    }
-
-    if (!foundPlaceholder) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('کلمه YOUR_BOT_TOKEN در کد پیدا نشد! کد را دستی بررسی کنید.'), backgroundColor: Colors.orange, duration: Duration(seconds: 4)),
-      );
-    }
-
-    try {
-      // کپی کردن در حافظه
-      await Clipboard.setData(ClipboardData(text: finalCode));
-      
-      setState(() => isCopied = true);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(foundPlaceholder ? 'توکن با موفقیت تزریق و کد کپی شد ✅' : 'کد کپی شد، اما توکن به صورت خودکار تزریق نشد! ⚠️'), 
-            backgroundColor: foundPlaceholder ? Colors.green : Colors.orange
-          ),
-        );
-      }
-      
-      Future.delayed(const Duration(seconds: 2), () { if (mounted) setState(() => isCopied = false); });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در کپی کردن: $e'), backgroundColor: Colors.red));
-      }
-    }
+  @override
+  void dispose() {
+    workerUrlController.dispose(); promptController.dispose(); tokenController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ربات‌ساز هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold)), centerTitle: true, backgroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+        title: const Text('ربات‌ساز هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold)), 
+        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
+        actions: [IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF8B5CF6)))]
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Card(elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6), size: 28), SizedBox(width: 10), Text('تولید کد با هوش مصنوعی', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))]),
-              const Divider(height: 30),
-              const Text('۱. آدرس Worker', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              TextField(controller: workerUrlController, decoration: _inputDecoration('https://...'), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 20),
-              const Text('۲. چه رباتی می‌خواهید؟', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              TextField(controller: promptController, maxLines: 3, decoration: _inputDecoration('مثلاً: یک ربات با ۳ دکمه شیشه‌ای برای فروشگاه بساز.')),
+        child: Column(children: [
+          Card(
+            elevation: 0, color: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6)), SizedBox(width: 8), Text('تولید کد با هوش مصنوعی', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]),
+              const Divider(height: 24),
+              TextField(controller: workerUrlController, decoration: _inputDecoration('آدرس Worker شما'), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              const SizedBox(height: 16),
+              TextField(controller: promptController, maxLines: 3, decoration: _inputDecoration('مثلاً: یک ربات با دکمه شیشه‌ای بساز...')),
               const SizedBox(height: 24),
-              SizedBox(width: double.infinity, height: 52, child: FilledButton.icon(
+              SizedBox(width: double.infinity, height: 48, child: FilledButton.icon(
                 onPressed: isLoading ? null : generateWithAI,
                 icon: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.auto_awesome),
-                label: Text(isLoading ? 'در حال فکر کردن...' : 'ساخت کد با هوش مصنوعی', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                label: Text(isLoading ? 'در حال پردازش...' : 'ساخت کد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
               )),
-            ]))),
-            if (generatedCode.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              const Text('🔑 توکن ربات خود را وارد کنید:', style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              TextField(controller: tokenController, decoration: _inputDecoration('123456789:ABCdef...'), textDirection: TextDirection.ltr),
-              const SizedBox(height: 12),
-              SizedBox(width: double.infinity, height: 50, child: FilledButton.icon(
-                onPressed: injectTokenAndCopy, 
-                icon: Icon(isCopied ? Icons.check : Icons.copy), 
-                label: Text(isCopied ? 'کپی شد!' : 'تزریق توکن و کپی کد', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)), 
-                style: FilledButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))
-              )),
-              const SizedBox(height: 24),
-              const Text('📝 کد تولید شده:', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Container(width: double.infinity, padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1E1E2E), borderRadius: BorderRadius.circular(12)), child: SelectableText(generatedCode, style: const TextStyle(fontFamily: 'monospace', color: Color(0xFFCDD6F4), fontSize: 13, height: 1.6))),
-            ],
-            const SizedBox(height: 40),
+            ])),
+          ),
+          const SizedBox(height: 20),
+          if (generatedCode.isNotEmpty) ...[
+            Card(
+              elevation: 0, color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+              child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
+                Expanded(child: TextField(controller: tokenController, decoration: _inputDecoration('توکن ربات خود را وارد کنید...'), textDirection: TextDirection.ltr)),
+                const SizedBox(width: 12),
+                ElevatedButton(
+                  onPressed: injectTokenAndCopy,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                  child: const Text('کپی'),
+                )
+              ])),
+            ),
+            const SizedBox(height: 20),
+            CodeViewer(code: generatedCode, isCopied: isCopied, onCopy: injectTokenAndCopy),
           ],
-        ),
+        ]),
       ),
     );
   }
-  InputDecoration _inputDecoration(String hint) => InputDecoration(hintText: hint, filled: true, fillColor: Colors.grey.shade50, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)));
+  InputDecoration _inputDecoration(String hint) => InputDecoration(
+    hintText: hint, filled: true, fillColor: Colors.grey.shade50,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -433,22 +455,64 @@ class _MyBotsScreenState extends State<MyBotsScreen> {
     botsJson.removeWhere((element) => SavedBot.fromJson(jsonDecode(element)).id == id);
     await prefs.setStringList('saved_bots', botsJson);
     _loadBots();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات حذف شد 🗑️'), backgroundColor: Colors.redAccent));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حذف شد 🗑️'), backgroundColor: Colors.redAccent));
+  }
+
+  void _showBotDetails(SavedBot bot) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(bot.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('توکن: ${bot.token}', style: const TextStyle(color: Colors.grey, fontFamily: 'monospace')),
+            const SizedBox(height: 16),
+            CodeViewer(
+              code: bot.code, 
+              isCopied: false, 
+              onCopy: () {
+                Clipboard.setData(ClipboardData(text: bot.code));
+                ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('کد کپی شد ✅')));
+              }
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ربات‌های من', style: TextStyle(fontWeight: FontWeight.bold)), centerTitle: true, backgroundColor: Colors.white, elevation: 0, actions: [IconButton(onPressed: _loadBots, icon: const Icon(Icons.refresh))]),
-      body: isLoading ? const Center(child: CircularProgressIndicator()) : savedBots.isEmpty ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.folder_open, size: 64, color: Colors.grey.shade400), const SizedBox(height: 16), const Text('هنوز هیچ رباتی ذخیره نکرده‌اید!', style: TextStyle(fontSize: 16, color: Colors.grey))])) : ListView.builder(
+      appBar: AppBar(
+        title: const Text('ربات‌های من', style: TextStyle(fontWeight: FontWeight.bold)), 
+        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
+        actions: [IconButton(onPressed: _loadBots, icon: const Icon(Icons.refresh))]
+      ),
+      body: isLoading ? const Center(child: CircularProgressIndicator()) : savedBots.isEmpty 
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.folder_open, size: 64, color: Colors.grey.shade400), const SizedBox(height: 16), const Text('هنوز هیچ رباتی ذخیره نکرده‌اید!', style: TextStyle(color: Colors.grey))])) 
+        : ListView.builder(
         padding: const EdgeInsets.all(16), itemCount: savedBots.length, itemBuilder: (context, index) {
           final bot = savedBots[index];
-          return Card(margin: const EdgeInsets.only(bottom: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: ListTile(
-            leading: const CircleAvatar(backgroundColor: Color(0xFFE0E7FF), child: Icon(Icons.smart_toy, color: Color(0xFF4A60FF))),
-            title: Text('دستور: ${bot.trigger}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('پاسخ: ${bot.response}', maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent), onPressed: () => _deleteBot(bot.id)),
-          ));
+          return Card(
+            elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            child: ListTile(
+              onTap: () => _showBotDetails(bot),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: const CircleAvatar(backgroundColor: Color(0xFFE0E7FF), child: Icon(Icons.smart_toy, color: Color(0xFF4A60FF))),
+              title: Text(bot.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('برای مشاهده کد کلیک کنید', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent), onPressed: () => _deleteBot(bot.id)),
+            ),
+          );
         },
       ),
     );
@@ -463,7 +527,7 @@ class TutorialsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('آموزش‌های کامل'), backgroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(title: const Text('آموزش‌های کامل'), backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _buildAccordion(context, title: 'مرحله ۱: ساخت ربات در بله', icon: Icons.smart_toy, content: 'در پیام‌رسان بله به @BotFather پیام دهید.\nدستور /newbot را ارسال کنید.\nیک نام و یوزرنیم انتخاب کنید.\nتوکن (Token) دریافتی را کپی کنید.'),
         _buildAccordion(context, title: 'مرحله ۲: ثبت‌نام در کلودفلر', icon: Icons.cloud, content: 'وارد سایت dash.cloudflare.com شوید.\nثبت‌نام رایگان کنید.\nاز منوی سمت چپ Workers & Pages را بزنید.'),
@@ -473,7 +537,16 @@ class TutorialsScreen extends StatelessWidget {
     );
   }
   Widget _buildAccordion(BuildContext context, {required String title, required IconData icon, required String content}) {
-    return Card(margin: const EdgeInsets.only(bottom: 12), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade300)), child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(leading: Icon(icon, color: const Color(0xFF4A60FF)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [Text(content, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))])));
+    return Card(
+      elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+      child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(
+        leading: Icon(icon, color: const Color(0xFF4A60FF)), 
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), 
+        children: [Text(content, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))]
+      ))
+    );
   }
 }
 
@@ -485,7 +558,7 @@ class FaqScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('پرسش‌های متداول'), backgroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(title: const Text('پرسش‌های متداول'), backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _buildFaqItem(context, question: 'چرا ربات جواب نمی‌دهد؟', answer: '۱. لینک Webhook را در مرورگر باز کرده‌اید؟\n۲. توکن درست است؟\n۳. کد را در کلودفلر Deploy کرده‌اید؟'),
         _buildFaqItem(context, question: 'آیا کلودفلر هزینه دارد؟', answer: 'خیر، پلن رایگان برای ربات‌های معمولی کاملاً کافی است.'),
@@ -494,6 +567,15 @@ class FaqScreen extends StatelessWidget {
     );
   }
   Widget _buildFaqItem(BuildContext context, {required String question, required String answer}) {
-    return Card(margin: const EdgeInsets.only(bottom: 12), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade300)), child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(leading: const Icon(Icons.help_outline, color: Colors.orange), title: Text(question, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), children: [Text(answer, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))])));
+    return Card(
+      elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+      child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(
+        leading: const Icon(Icons.help_outline, color: Colors.orange), 
+        title: Text(question, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), 
+        children: [Text(answer, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))]
+      ))
+    );
   }
 }
