@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // کنترلر مرکزی برای تم (روشن / تاریک)
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -18,7 +17,7 @@ void main() async {
   if (themeStr == 'dark') {
     themeNotifier.value = ThemeMode.dark;
   } else {
-    themeNotifier.value = ThemeMode.light; // پیش‌فرض روشن
+    themeNotifier.value = ThemeMode.light;
   }
 
   runApp(const MyApp());
@@ -45,7 +44,6 @@ class MyApp extends StatelessWidget {
               brightness: Brightness.light,
             ),
             scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-            textTheme: GoogleFonts.vazirmatnTextTheme(),
             appBarTheme: const AppBarTheme(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
@@ -60,8 +58,7 @@ class MyApp extends StatelessWidget {
               seedColor: const Color(0xFF4A60FF),
               brightness: Brightness.dark,
             ),
-            scaffoldBackgroundColor: const Color(0xFF0F172A), // پس‌زمینه تیره مدرن
-            textTheme: GoogleFonts.vazirmatnTextTheme(ThemeData.dark().textTheme),
+            scaffoldBackgroundColor: const Color(0xFF0F172A),
             appBarTheme: const AppBarTheme(
               backgroundColor: Color(0xFF1E293B),
               surfaceTintColor: Colors.transparent,
@@ -166,7 +163,6 @@ class CodeViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // این باکس همیشه تیره است تا کدها خوانا باشند (حتی در تم روشن)
     return Container(
       decoration: BoxDecoration(color: const Color(0xFF1E1E2E), borderRadius: BorderRadius.circular(12)),
       child: Column(
@@ -287,7 +283,6 @@ export default {
         title: const Text('ربات‌ساز دستی', style: TextStyle(fontWeight: FontWeight.bold)), 
         centerTitle: true,
         actions: [
-          // 🌓 دکمه تغییر تم
           IconButton(
             onPressed: toggleTheme,
             icon: ValueListenableBuilder<ThemeMode>(
@@ -658,7 +653,7 @@ class FaqScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// ویجت کمکی برای استایل فیلدهای متنی (سازگار با تم تاریک/روشن)
+// ویجت کمکی برای استایل فیلدهای متنی
 // ---------------------------------------------------------------------------
 InputDecoration _inputDecoration(BuildContext context, String hint) => InputDecoration(
   hintText: hint,
