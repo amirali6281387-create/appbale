@@ -1,6 +1,5 @@
 import java.util.Properties
 import java.io.FileInputStream
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget // 👈 این خط برای تنظیمات جدید کاتلین اضافه شده
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
@@ -10,7 +9,7 @@ if (keystorePropertiesFile.exists()) {
 
 plugins {
     id("com.android.application")
-    // id("kotlin-android") // 👈 این خط حذف شد (چون AGP 9 خودش کاتلین را دارد)
+    id("kotlin-android") // 👈 برگشت به حالت استاندارد
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -24,7 +23,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    // 👈 بخش kotlinOptions از اینجا حذف شد
+    kotlinOptions { // 👈 برگشت به حالت استاندارد
+        jvmTarget = "1.8"
+    }
 
     defaultConfig {
         applicationId = "ir.amirali.balebot" 
@@ -49,13 +50,6 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
         }
-    }
-}
-
-// 👈 این بلوک جدید جایگزین kotlinOptions قدیمی شده است
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_1_8)
     }
 }
 
