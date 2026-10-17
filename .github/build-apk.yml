@@ -1,71 +1,52 @@
-name: Professional Build & Sign APK
+name: Build APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Java (JDK 17)
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Flutter with Cache
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.0'
           channel: 'stable'
           cache: true
 
-      - name: Get Flutter Dependencies
+      - name: Get dependencies
         run: flutter pub get
 
-      - name: Generate Launcher Icons
-        run: dart run flutter_launcher_icons
-
-      - name: Decode Keystore from Secrets
+      - name: Decode Keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-key.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/wifi-radar-key.jks
 
-      - name: Convert JKS to PKCS12 (For JDK 17 Compatibility)
+      - name: Convert JKS to P12
         run: |
-          keytool -importkeystore \
-            -srckeystore android/app/release-key.jks \
-            -srcstoretype JKS \
-            -destkeystore android/app/release-key.p12 \
-            -deststoretype PKCS12 \
-            -srcstorepass "$KEYSTORE_PASSWORD" \
-            -deststorepass "$KEYSTORE_PASSWORD" \
-            -srcalias "$KEY_ALIAS" \
-            -destalias "$KEY_ALIAS" \
-            -noprompt
+          keytool -importkeystore -srckeystore android/app/wifi-radar-key.jks -srcstoretype JKS -destkeystore android/app/wifi-radar-key.p12 -deststoretype PKCS12 -srcstorepass "${{ secrets.KEYSTORE_PASSWORD }}" -deststorepass "${{ secrets.KEYSTORE_PASSWORD }}" -noprompt
 
       - name: Create key.properties
         run: |
-          echo "storePassword=$KEYSTORE_PASSWORD" > android/key.properties
-          echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
-          echo "keyAlias=$KEY_ALIAS" >> android/key.properties
-          echo "storeFile=release-key.p12" >> android/key.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=wifi-radar-key.p12" >> android/key.properties
 
-      - name: Build Release APK
+      - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload Signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BaleBot-Signed-APK
+          name: balebot-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
