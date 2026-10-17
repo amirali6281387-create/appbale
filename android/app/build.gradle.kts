@@ -1,6 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget // 👈 برای تنظیمات جدید کاتلین
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
@@ -16,7 +16,7 @@ plugins {
 
 android {
     namespace = "ir.amirali.balebot" 
-    compileSdk = 34
+    compileSdk = 36 // 👈 اینجا از 34 به 36 تغییر کرد (مشکل اصلی اینجا بود)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,13 +24,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    // 👈 بخش kotlinOptions از اینجا حذف شد (چون منسوخ شده است)
-
     defaultConfig {
         applicationId = "ir.amirali.balebot" 
         minSdk = 23
         targetSdk = 36
-        // 👇 این دو خط اصلاح شدند (پرانتزها حذف شدند)
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -53,7 +50,6 @@ android {
     }
 }
 
-// 👇 بلوک جدید جایگزین kotlinOptions قدیمی شده است
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_1_8)
