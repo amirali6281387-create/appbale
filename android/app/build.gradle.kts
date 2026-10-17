@@ -29,7 +29,7 @@ android {
     defaultConfig {
         applicationId = "ir.amirali.balebot" 
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 36
         // 👇 این دو خط اصلاح شدند (پرانتزها حذف شدند)
         versionCode = flutter.versionCode
         versionName = flutter.versionName
