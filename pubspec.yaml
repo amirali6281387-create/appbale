@@ -1,0 +1,35 @@
+name: bale_bot_academy
+description: آکادمی ساخت ربات بله
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
+  http: ^1.6.0
+  # اگر می‌خواهید کدها هایلایت (رنگی) شوند، خط زیر را از کامنت دربیاورید:
+  # flutter_highlight: ^0.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "#02050D"
+  adaptive_icon_foreground: "assets/icon.png"
+  min_sdk_android: 21
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
