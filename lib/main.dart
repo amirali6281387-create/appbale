@@ -6,7 +6,21 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-void main() {
+// کنترلر مرکزی برای تم (روشن / تاریک)
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // خواندن تم ذخیره شده از حافظه
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? themeStr = prefs.getString('theme_mode');
+  if (themeStr == 'dark') {
+    themeNotifier.value = ThemeMode.dark;
+  } else {
+    themeNotifier.value = ThemeMode.light; // پیش‌فرض روشن
+  }
+
   runApp(const MyApp());
 }
 
@@ -15,20 +29,61 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ربات‌ساز بله',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4A60FF),
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-        textTheme: GoogleFonts.vazirmatnTextTheme(),
-      ),
-      home: const MainNavigationScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, currentMode, child) {
+        return MaterialApp(
+          title: 'ربات‌ساز بله',
+          debugShowCheckedModeBanner: false,
+          themeMode: currentMode,
+          
+          // ☀️ تم روشن
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF4A60FF),
+              brightness: Brightness.light,
+            ),
+            scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+            textTheme: GoogleFonts.vazirmatnTextTheme(),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+            ),
+          ),
+          
+          // 🌙 تم تاریک
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF4A60FF),
+              brightness: Brightness.dark,
+            ),
+            scaffoldBackgroundColor: const Color(0xFF0F172A), // پس‌زمینه تیره مدرن
+            textTheme: GoogleFonts.vazirmatnTextTheme(ThemeData.dark().textTheme),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFF1E293B),
+              surfaceTintColor: Colors.transparent,
+              elevation: 0,
+            ),
+          ),
+          
+          home: const MainNavigationScreen(),
+        );
+      }
     );
+  }
+}
+
+// تابع تغییر تم و ذخیره آن
+Future<void> toggleTheme() async {
+  if (themeNotifier.value == ThemeMode.light) {
+    themeNotifier.value = ThemeMode.dark;
+    (await SharedPreferences.getInstance()).setString('theme_mode', 'dark');
+  } else {
+    themeNotifier.value = ThemeMode.light;
+    (await SharedPreferences.getInstance()).setString('theme_mode', 'light');
   }
 }
 
@@ -60,7 +115,7 @@ class SavedBot {
 }
 
 // ---------------------------------------------------------------------------
-// صفحه اصلی
+// صفحه اصلی (ناوبری)
 // ---------------------------------------------------------------------------
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -111,6 +166,7 @@ class CodeViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // این باکس همیشه تیره است تا کدها خوانا باشند (حتی در تم روشن)
     return Container(
       decoration: BoxDecoration(color: const Color(0xFF1E1E2E), borderRadius: BorderRadius.circular(12)),
       child: Column(
@@ -229,15 +285,28 @@ export default {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربات‌ساز دستی', style: TextStyle(fontWeight: FontWeight.bold)), 
-        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
-        actions: [IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF4A60FF)))]
+        centerTitle: true,
+        actions: [
+          // 🌓 دکمه تغییر تم
+          IconButton(
+            onPressed: toggleTheme,
+            icon: ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeNotifier,
+              builder: (context, mode, child) {
+                return Icon(mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode);
+              }
+            )
+          ),
+          IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF4A60FF))),
+        ]
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
           Card(
-            elevation: 0, color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            elevation: 0,
+            color: Theme.of(context).cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
             child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 const Icon(Icons.settings, color: Color(0xFF4A60FF)), const SizedBox(width: 8),
@@ -246,15 +315,15 @@ export default {
                 TextButton.icon(onPressed: () => _launchUrl('https://ble.ir/botfather'), icon: const Icon(Icons.link, size: 16), label: const Text('گرفتن توکن', style: TextStyle(fontSize: 12))),
               ]),
               const Divider(height: 24),
-              TextField(controller: tokenController, decoration: _inputDecoration('توکن ربات (مثلاً 123456:ABC...)')),
+              TextField(controller: tokenController, decoration: _inputDecoration(context, 'توکن ربات (مثلاً 123456:ABC...)')),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(value: selectedTrigger, decoration: _inputDecoration(''), items: const [
+              DropdownButtonFormField<String>(value: selectedTrigger, decoration: _inputDecoration(context, ''), items: const [
                 DropdownMenuItem(value: '/start', child: Text('پاسخ به /start')),
                 DropdownMenuItem(value: 'سلام', child: Text('پاسخ به سلام')),
                 DropdownMenuItem(value: 'قیمت', child: Text('پاسخ به قیمت')),
               ], onChanged: (val) => setState(() => selectedTrigger = val!)),
               const SizedBox(height: 16),
-              TextField(controller: responseController, maxLines: 3, decoration: _inputDecoration('متن پاسخ ربات...')),
+              TextField(controller: responseController, maxLines: 3, decoration: _inputDecoration(context, 'متن پاسخ ربات...')),
               const SizedBox(height: 24),
               SizedBox(width: double.infinity, height: 48, child: FilledButton.icon(onPressed: generateCode, icon: const Icon(Icons.code), label: const Text('ساخت کد', style: TextStyle(fontWeight: FontWeight.bold)), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF4A60FF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))))),
             ])),
@@ -264,12 +333,13 @@ export default {
             CodeViewer(code: generatedCode, isCopied: isCopied, onCopy: () => copyToClipboard(generatedCode)),
             const SizedBox(height: 20),
             Card(
-              elevation: 0, color: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+              elevation: 0,
+              color: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
               child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('🔗 اتصال نهایی (Webhook)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                TextField(controller: workerUrlController, decoration: _inputDecoration('https://your-bot.workers.dev'), onChanged: (_) => setState(() {})),
+                TextField(controller: workerUrlController, decoration: _inputDecoration(context, 'https://your-bot.workers.dev'), onChanged: (_) => setState(() {})),
                 const SizedBox(height: 12),
                 SizedBox(width: double.infinity, child: FilledButton.icon(
                   onPressed: (tokenController.text.isEmpty || workerUrlController.text.isEmpty) ? null : () => copyToClipboard('https://tapi.bale.ai/bot${tokenController.text.trim()}/setWebhook?url=${workerUrlController.text.trim()}', isWebhook: true),
@@ -282,13 +352,6 @@ export default {
       ),
     );
   }
-
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
-    hintText: hint, filled: true, fillColor: Colors.grey.shade50,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -368,21 +431,33 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربات‌ساز هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold)), 
-        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
-        actions: [IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF8B5CF6)))]
+        centerTitle: true, 
+        actions: [
+          IconButton(
+            onPressed: toggleTheme,
+            icon: ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeNotifier,
+              builder: (context, mode, child) {
+                return Icon(mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode);
+              }
+            )
+          ),
+          IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF8B5CF6))),
+        ]
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(children: [
           Card(
-            elevation: 0, color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            elevation: 0,
+            color: Theme.of(context).cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
             child: Padding(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Row(children: [Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6)), SizedBox(width: 8), Text('تولید کد با هوش مصنوعی', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]),
               const Divider(height: 24),
-              TextField(controller: workerUrlController, decoration: _inputDecoration('آدرس Worker شما'), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              TextField(controller: workerUrlController, decoration: _inputDecoration(context, 'آدرس Worker شما'), textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 13, color: Colors.grey)),
               const SizedBox(height: 16),
-              TextField(controller: promptController, maxLines: 3, decoration: _inputDecoration('مثلاً: یک ربات با دکمه شیشه‌ای بساز...')),
+              TextField(controller: promptController, maxLines: 3, decoration: _inputDecoration(context, 'مثلاً: یک ربات با دکمه شیشه‌ای بساز...')),
               const SizedBox(height: 24),
               SizedBox(width: double.infinity, height: 48, child: FilledButton.icon(
                 onPressed: isLoading ? null : generateWithAI,
@@ -395,10 +470,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
           const SizedBox(height: 20),
           if (generatedCode.isNotEmpty) ...[
             Card(
-              elevation: 0, color: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+              elevation: 0,
+              color: Theme.of(context).cardColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
               child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
-                Expanded(child: TextField(controller: tokenController, decoration: _inputDecoration('توکن ربات خود را وارد کنید...'), textDirection: TextDirection.ltr)),
+                Expanded(child: TextField(controller: tokenController, decoration: _inputDecoration(context, 'توکن ربات خود را وارد کنید...'), textDirection: TextDirection.ltr)),
                 const SizedBox(width: 12),
                 ElevatedButton(
                   onPressed: injectTokenAndCopy,
@@ -414,12 +490,6 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       ),
     );
   }
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
-    hintText: hint, filled: true, fillColor: Colors.grey.shade50,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -462,6 +532,7 @@ class _MyBotsScreenState extends State<MyBotsScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
@@ -493,7 +564,7 @@ class _MyBotsScreenState extends State<MyBotsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربات‌های من', style: TextStyle(fontWeight: FontWeight.bold)), 
-        centerTitle: true, backgroundColor: Colors.white, surfaceTintColor: Colors.transparent,
+        centerTitle: true, 
         actions: [IconButton(onPressed: _loadBots, icon: const Icon(Icons.refresh))]
       ),
       body: isLoading ? const Center(child: CircularProgressIndicator()) : savedBots.isEmpty 
@@ -502,8 +573,10 @@ class _MyBotsScreenState extends State<MyBotsScreen> {
         padding: const EdgeInsets.all(16), itemCount: savedBots.length, itemBuilder: (context, index) {
           final bot = savedBots[index];
           return Card(
-            elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+            elevation: 0,
+            color: Theme.of(context).cardColor,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
             child: ListTile(
               onTap: () => _showBotDetails(bot),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -527,7 +600,7 @@ class TutorialsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('آموزش‌های کامل'), backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
+      appBar: AppBar(title: const Text('آموزش‌های کامل')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _buildAccordion(context, title: 'مرحله ۱: ساخت ربات در بله', icon: Icons.smart_toy, content: 'در پیام‌رسان بله به @BotFather پیام دهید.\nدستور /newbot را ارسال کنید.\nیک نام و یوزرنیم انتخاب کنید.\nتوکن (Token) دریافتی را کپی کنید.'),
         _buildAccordion(context, title: 'مرحله ۲: ثبت‌نام در کلودفلر', icon: Icons.cloud, content: 'وارد سایت dash.cloudflare.com شوید.\nثبت‌نام رایگان کنید.\nاز منوی سمت چپ Workers & Pages را بزنید.'),
@@ -538,13 +611,15 @@ class TutorialsScreen extends StatelessWidget {
   }
   Widget _buildAccordion(BuildContext context, {required String title, required IconData icon, required String content}) {
     return Card(
-      elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+      elevation: 0,
+      color: Theme.of(context).cardColor,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
       child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(
         leading: Icon(icon, color: const Color(0xFF4A60FF)), 
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), 
-        children: [Text(content, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))]
+        children: [Text(content, style: TextStyle(fontSize: 13, height: 1.8, color: Theme.of(context).textTheme.bodyMedium?.color))]
       ))
     );
   }
@@ -558,7 +633,7 @@ class FaqScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('پرسش‌های متداول'), backgroundColor: Colors.white, surfaceTintColor: Colors.transparent),
+      appBar: AppBar(title: const Text('پرسش‌های متداول')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         _buildFaqItem(context, question: 'چرا ربات جواب نمی‌دهد؟', answer: '۱. لینک Webhook را در مرورگر باز کرده‌اید؟\n۲. توکن درست است؟\n۳. کد را در کلودفلر Deploy کرده‌اید؟'),
         _buildFaqItem(context, question: 'آیا کلودفلر هزینه دارد؟', answer: 'خیر، پلن رایگان برای ربات‌های معمولی کاملاً کافی است.'),
@@ -568,14 +643,33 @@ class FaqScreen extends StatelessWidget {
   }
   Widget _buildFaqItem(BuildContext context, {required String question, required String answer}) {
     return Card(
-      elevation: 0, color: Colors.white, margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade200)),
+      elevation: 0,
+      color: Theme.of(context).cardColor,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
       child: Theme(data: Theme.of(context).copyWith(dividerColor: Colors.transparent), child: ExpansionTile(
         leading: const Icon(Icons.help_outline, color: Colors.orange), 
         title: Text(question, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), 
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16), 
-        children: [Text(answer, style: TextStyle(fontSize: 13, height: 1.8, color: Colors.grey.shade800))]
+        children: [Text(answer, style: TextStyle(fontSize: 13, height: 1.8, color: Theme.of(context).textTheme.bodyMedium?.color))]
       ))
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// ویجت کمکی برای استایل فیلدهای متنی (سازگار با تم تاریک/روشن)
+// ---------------------------------------------------------------------------
+InputDecoration _inputDecoration(BuildContext context, String hint) => InputDecoration(
+  hintText: hint,
+  filled: true,
+  fillColor: Theme.of(context).brightness == Brightness.dark 
+      ? Colors.grey.shade800.withOpacity(0.3) 
+      : Colors.grey.shade50,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12), 
+    borderSide: BorderSide(color: Theme.of(context).dividerColor)
+  ),
+);
