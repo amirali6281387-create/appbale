@@ -468,26 +468,44 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final TextEditingController workerUrlController = TextEditingController(text: 'https://your-worker-name.workers.dev/');
   final TextEditingController promptController = TextEditingController();
   final TextEditingController tokenController = TextEditingController();
+  
   String generatedCode = '';
   bool isLoading = false;
   bool isCopied = false;
+  String activePrompt = '';
 
-  Future<void> generateWithAI() async {
+  // 🪄 تابع جادویی برای تمیز کردن کد از توضیحات اضافه
+  String extractRawCode(String raw) {
+    String code = raw;
+    code = code.replaceAll('```javascript', '').replaceAll('```js', '').replaceAll('```', '');
+    
+    int startIndex = code.indexOf('export default');
+    if (startIndex != -1) {
+      code = code.substring(startIndex);
+    }
+    int endIndex = code.lastIndexOf('}');
+    if (endIndex != -1) {
+      code = code.substring(0, endIndex + 1);
+    }
+    return code.trim();
+  }
+
+  Future<void> generateWithAI(String promptText) async {
     final url = workerUrlController.text.trim();
-    final prompt = promptController.text.trim();
-    if (url.isEmpty || prompt.isEmpty) return;
+    if (url.isEmpty || promptText.isEmpty) return;
 
-    setState(() { isLoading = true; generatedCode = ''; });
+    setState(() { isLoading = true; generatedCode = ''; activePrompt = promptText; promptController.text = promptText; });
+    
     try {
       final response = await http.post(
         Uri.parse(url), 
         headers: {'Content-Type': 'application/json'}, 
-        body: jsonEncode({'prompt': prompt})
+        body: jsonEncode({'prompt': promptText})
       ).timeout(const Duration(seconds: 60));
       
       if (response.statusCode == 200) {
-        String rawCode = response.body.replaceAll('```javascript', '').replaceAll('```js', '').replaceAll('```', '').trim();
-        setState(() => generatedCode = rawCode);
+        String cleanCode = extractRawCode(response.body);
+        setState(() => generatedCode = cleanCode);
       } else {
         throw Exception('خطا در سرور');
       }
@@ -504,7 +522,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
     final savedBots = prefs.getStringList('saved_bots') ?? [];
     savedBots.add(jsonEncode({
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': 'ربات هوش مصنوعی',
+      'title': 'ربات هوش مصنوعی (${activePrompt.length > 20 ? activePrompt.substring(0, 20) + "..." : activePrompt})',
       'token': tokenController.text.trim(),
       'code': generatedCode,
       'date': DateTime.now().toIso8601String()
@@ -534,6 +552,13 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<Map<String, String>> quickPrompts = [
+      {"title": "🤖 ربات خوش‌آمدگو", "prompt": "Write raw JavaScript code for a Bale bot. When user sends /start, reply with 'سلام! به ربات من خوش آمدید'. ONLY CODE."},
+      {"title": "🔘 ربات دکمه‌ای", "prompt": "Write raw JavaScript code for a Bale bot. When user sends /start, show an inline keyboard with 3 buttons: 'فروشگاه', 'پشتیبانی', 'درباره ما'. ONLY CODE."},
+      {"title": "🛍️ ربات فروشگاهی", "prompt": "Write raw JavaScript code for a Bale bot. When user sends 'قیمت', reply with a list of products and prices. ONLY CODE."},
+      {"title": "📞 ربات پشتیبانی", "prompt": "Write raw JavaScript code for a Bale bot. When user sends any message, reply with 'پیام شما دریافت شد. به زودی پاسخ می‌دهیم.' ONLY CODE."},
+    ];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('ربات‌ساز هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), 
@@ -562,29 +587,45 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
                     child: const Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6), size: 20),
                   ), 
                   const SizedBox(width: 12),
-                  const Text('تولید کد با هوش مصنوعی', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
+                  const Text('ربات هوشمند خود را انتخاب کنید', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
                 ]),
                 const Divider(height: 32),
-                TextField(
-                  controller: workerUrlController, 
-                  decoration: const InputDecoration(labelText: 'آدرس Worker (API)', prefixIcon: Icon(Icons.cloud)), 
-                  textDirection: TextDirection.ltr, 
-                  style: const TextStyle(fontSize: 13)
+                
+                const Text('۱. یک قالب آماده انتخاب کنید:', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: quickPrompts.map((item) {
+                    return ActionChip(
+                      label: Text(item['title']!),
+                      onPressed: () {
+                        promptController.text = item['prompt']!;
+                        generateWithAI(item['prompt']!); 
+                      },
+                      backgroundColor: const Color(0xFF8B5CF6).withOpacity(0.1),
+                      side: BorderSide(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
+                      labelStyle: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
+                    );
+                  }).toList(),
                 ),
-                const SizedBox(height: 16),
+                
+                const SizedBox(height: 24),
+                const Text('۲. یا پرامپت خودتان را بنویسید:', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
                 TextField(
                   controller: promptController, 
                   maxLines: 3, 
-                  decoration: const InputDecoration(labelText: 'توضیحات ربات', hintText: 'مثلاً: یک ربات با دکمه شیشه‌ای بساز...', prefixIcon: Icon(Icons.chat))
+                  decoration: const InputDecoration(labelText: 'توضیحات ربات', hintText: 'مثلاً: رباتی بساز که به سلام جواب بدهد...', prefixIcon: Icon(Icons.chat))
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity, 
                   height: 50, 
                   child: FilledButton.icon(
-                    onPressed: isLoading ? null : generateWithAI,
+                    onPressed: isLoading ? null : () => generateWithAI(promptController.text.trim()),
                     icon: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.auto_awesome),
-                    label: Text(isLoading ? 'در حال پردازش...' : 'ساخت کد با AI', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    label: Text(isLoading ? 'در حال ساخت کد...' : 'ساخت کد سفارشی', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   )
                 ),
