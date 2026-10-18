@@ -150,7 +150,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   
   final List<Widget> _screens = [
     const BotBuilderScreen(),
-    const AIAssistantScreen(),
+    const AIChatScreen(), // 👈 تب هوش مصنوعی به چت تغییر کرد
     const MyBotsScreen(),
     const TutorialsScreen(),
     const FaqScreen(),
@@ -169,10 +169,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             selectedIndex: _currentIndex,
             onDestinationSelected: (index) => setState(() => _currentIndex = index),
             backgroundColor: Theme.of(context).cardColor.withOpacity(0.95),
-            indicatorColor: const Color(0xFF4A60FF).withOpacity(0.2),
+            indicatorColor: const Color(0xFF8B5CF6).withOpacity(0.2),
             destinations: const [
               NavigationDestination(icon: Icon(Icons.smart_toy_outlined), selectedIcon: Icon(Icons.smart_toy, color: Color(0xFF4A60FF)), label: 'دستی'),
-              NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), selectedIcon: Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6)), label: 'هوش مصنوعی'),
+              NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble, color: Color(0xFF8B5CF6)), label: 'چت AI'),
               NavigationDestination(icon: Icon(Icons.folder_outlined), selectedIcon: Icon(Icons.folder, color: Color(0xFF4A60FF)), label: 'ربات‌ها'),
               NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book, color: Color(0xFF4A60FF)), label: 'آموزش'),
               NavigationDestination(icon: Icon(Icons.help_outline), selectedIcon: Icon(Icons.help, color: Color(0xFF4A60FF)), label: 'رفع مشکل'),
@@ -456,112 +456,88 @@ export default {
 }
 
 // ---------------------------------------------------------------------------
-// ۲. صفحه هوش مصنوعی
+// ۲. صفحه چت هوش مصنوعی (کاملاً جدید)
 // ---------------------------------------------------------------------------
-class AIAssistantScreen extends StatefulWidget {
-  const AIAssistantScreen({super.key});
+class AIChatScreen extends StatefulWidget {
+  const AIChatScreen({super.key});
   @override
-  State<AIAssistantScreen> createState() => _AIAssistantScreenState();
+  State<AIChatScreen> createState() => _AIChatScreenState();
 }
 
-class _AIAssistantScreenState extends State<AIAssistantScreen> {
-  final TextEditingController workerUrlController = TextEditingController(text: 'https://your-worker-name.workers.dev/');
-  final TextEditingController promptController = TextEditingController();
-  final TextEditingController tokenController = TextEditingController();
+class _AIChatScreenState extends State<AIChatScreen> {
+  final TextEditingController messageController = TextEditingController();
+  final ScrollController scrollController = ScrollController();
   
-  String generatedCode = '';
+  // آدرس ورکر هوش مصنوعی شما
+  final String workerUrl = 'https://aibaleapp.amirali6281387.workers.dev/';
+  
   bool isLoading = false;
-  bool isCopied = false;
-  String activePrompt = '';
+  
+  // لیست پیام‌های چت
+  List<Map<String, dynamic>> messages = [
+    {'role': 'ai', 'text': 'سلام! من دستیار هوش مصنوعی شما هستم. چطور می‌تونم کمکتون کنم؟ (مثلاً می‌تونید بپرسید: چطور یک ربات بله بسازم؟ یا کد جاوا اسکریپت می‌خوام)'}
+  ];
 
-  // 🪄 تابع جادویی برای تمیز کردن کد از توضیحات اضافه
-  String extractRawCode(String raw) {
-    String code = raw;
-    code = code.replaceAll('```javascript', '').replaceAll('```js', '').replaceAll('```', '');
-    
-    int startIndex = code.indexOf('export default');
-    if (startIndex != -1) {
-      code = code.substring(startIndex);
-    }
-    int endIndex = code.lastIndexOf('}');
-    if (endIndex != -1) {
-      code = code.substring(0, endIndex + 1);
-    }
-    return code.trim();
-  }
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty || isLoading) return;
 
-  Future<void> generateWithAI(String promptText) async {
-    final url = workerUrlController.text.trim();
-    if (url.isEmpty || promptText.isEmpty) return;
+    setState(() {
+      messages.add({'role': 'user', 'text': text});
+      isLoading = true;
+      messageController.clear();
+    });
 
-    setState(() { isLoading = true; generatedCode = ''; activePrompt = promptText; promptController.text = promptText; });
-    
+    _scrollToBottom();
+
     try {
       final response = await http.post(
-        Uri.parse(url), 
-        headers: {'Content-Type': 'application/json'}, 
-        body: jsonEncode({'prompt': promptText})
+        Uri.parse(workerUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': text}),
       ).timeout(const Duration(seconds: 60));
-      
+
       if (response.statusCode == 200) {
-        String cleanCode = extractRawCode(response.body);
-        setState(() => generatedCode = cleanCode);
+        setState(() {
+          messages.add({'role': 'ai', 'text': response.body});
+        });
       } else {
-        throw Exception('خطا در سرور');
+        throw Exception('خطا در سرور: ${response.statusCode}');
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا: $e'), backgroundColor: Colors.red));
+      setState(() {
+        messages.add({'role': 'error', 'text': 'متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.\nجزئیات: $e'});
+      });
     } finally {
       setState(() => isLoading = false);
+      _scrollToBottom();
     }
   }
 
-  Future<void> _saveBot() async {
-    if (generatedCode.isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    final savedBots = prefs.getStringList('saved_bots') ?? [];
-    savedBots.add(jsonEncode({
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'title': 'ربات هوش مصنوعی (${activePrompt.length > 20 ? activePrompt.substring(0, 20) + "..." : activePrompt})',
-      'token': tokenController.text.trim(),
-      'code': generatedCode,
-      'date': DateTime.now().toIso8601String()
-    }));
-    await prefs.setStringList('saved_bots', savedBots);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات AI ذخیره شد 💾'), backgroundColor: Colors.green));
-  }
-
-  void injectTokenAndCopy() {
-    final token = tokenController.text.trim();
-    if (token.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لطفاً توکن ربات را وارد کنید.'), backgroundColor: Colors.orange));
-      return;
-    }
-    final finalCode = generatedCode.replaceAll('YOUR_BOT_TOKEN', token).replaceAll('YOUR_TOKEN', token).replaceAll('BOT_TOKEN', token);
-    Clipboard.setData(ClipboardData(text: finalCode));
-    setState(() => isCopied = true);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('توکن جایگزین و کد کپی شد ✅'), backgroundColor: Colors.green));
-    Future.delayed(const Duration(seconds: 2), () { if (mounted) setState(() => isCopied = false); });
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) {
+        scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
-    workerUrlController.dispose(); promptController.dispose(); tokenController.dispose();
+    messageController.dispose();
+    scrollController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, String>> quickPrompts = [
-      {"title": "🤖 ربات خوش‌آمدگو", "prompt": "Write raw JavaScript code for a Bale bot. When user sends /start, reply with 'سلام! به ربات من خوش آمدید'. ONLY CODE."},
-      {"title": "🔘 ربات دکمه‌ای", "prompt": "Write raw JavaScript code for a Bale bot. When user sends /start, show an inline keyboard with 3 buttons: 'فروشگاه', 'پشتیبانی', 'درباره ما'. ONLY CODE."},
-      {"title": "🛍️ ربات فروشگاهی", "prompt": "Write raw JavaScript code for a Bale bot. When user sends 'قیمت', reply with a list of products and prices. ONLY CODE."},
-      {"title": "📞 ربات پشتیبانی", "prompt": "Write raw JavaScript code for a Bale bot. When user sends any message, reply with 'پیام شما دریافت شد. به زودی پاسخ می‌دهیم.' ONLY CODE."},
-    ];
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ربات‌ساز هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), 
+        title: const Text('چت با هوش مصنوعی', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), 
         actions: [
           IconButton(
             onPressed: toggleTheme,
@@ -570,99 +546,128 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               builder: (context, mode, child) => Icon(mode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode)
             )
           ),
-          IconButton(onPressed: _saveBot, icon: const Icon(Icons.save_outlined, color: Color(0xFF8B5CF6))),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                messages = [
+                  {'role': 'ai', 'text': 'چت پاک شد. چه سوالی دارید؟'}
+                ];
+              });
+            },
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            tooltip: 'پاک کردن چت',
+          ),
         ]
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        child: Column(children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20), 
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: const Color(0xFF8B5CF6).withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFF8B5CF6), size: 20),
-                  ), 
-                  const SizedBox(width: 12),
-                  const Text('ربات هوشمند خود را انتخاب کنید', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
-                ]),
-                const Divider(height: 32),
-                
-                const Text('۱. یک قالب آماده انتخاب کنید:', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: quickPrompts.map((item) {
-                    return ActionChip(
-                      label: Text(item['title']!),
-                      onPressed: () {
-                        promptController.text = item['prompt']!;
-                        generateWithAI(item['prompt']!); 
-                      },
-                      backgroundColor: const Color(0xFF8B5CF6).withOpacity(0.1),
-                      side: BorderSide(color: const Color(0xFF8B5CF6).withOpacity(0.3)),
-                      labelStyle: const TextStyle(color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
-                    );
-                  }).toList(),
-                ),
-                
-                const SizedBox(height: 24),
-                const Text('۲. یا پرامپت خودتان را بنویسید:', style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: promptController, 
-                  maxLines: 3, 
-                  decoration: const InputDecoration(labelText: 'توضیحات ربات', hintText: 'مثلاً: رباتی بساز که به سلام جواب بدهد...', prefixIcon: Icon(Icons.chat))
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity, 
-                  height: 50, 
-                  child: FilledButton.icon(
-                    onPressed: isLoading ? null : () => generateWithAI(promptController.text.trim()),
-                    icon: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.auto_awesome),
-                    label: Text(isLoading ? 'در حال ساخت کد...' : 'ساخت کد سفارشی', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF8B5CF6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  )
-                ),
-              ]),
+      body: Column(
+        children: [
+          // لیست پیام‌ها
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final msg = messages[index];
+                final isUser = msg['role'] == 'user';
+                final isError = msg['role'] == 'error';
+
+                return Align(
+                  alignment: isUser ? Alignment.centerLeft : Alignment.centerRight,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
+                    decoration: BoxDecoration(
+                      color: isUser 
+                          ? const Color(0xFF4A60FF) 
+                          : (isError ? Colors.red.shade100 : Theme.of(context).cardColor),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: isUser ? Radius.zero : const Radius.circular(16),
+                        bottomRight: isUser ? const Radius.circular(16) : Radius.zero,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        )
+                      ],
+                    ),
+                    child: SelectableText(
+                      msg['text'],
+                      style: TextStyle(
+                        color: isUser 
+                            ? Colors.white 
+                            : (isError ? Colors.red.shade900 : Theme.of(context).textTheme.bodyMedium?.color),
+                        fontSize: 14,
+                        height: 1.6,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 20),
-          if (generatedCode.isNotEmpty) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20), 
-                child: Row(children: [
-                  Expanded(
-                    child: TextField(
-                      controller: tokenController, 
-                      decoration: const InputDecoration(hintText: 'توکن ربات خود را وارد کنید...', prefixIcon: Icon(Icons.vpn_key)), 
-                      textDirection: TextDirection.ltr
-                    )
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: injectTokenAndCopy,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green, 
-                      foregroundColor: Colors.white, 
-                      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20), 
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
-                    ),
-                    child: const Text('کپی'),
-                  )
-                ]),
+
+          // نشانگر در حال تایپ
+          if (isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8B5CF6))),
+                  const SizedBox(width: 8),
+                  Text('هوش مصنوعی در حال فکر کردن است...', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-            CodeViewer(code: generatedCode, isCopied: isCopied, onCopy: injectTokenAndCopy),
-          ],
-        ]),
+
+          // فیلد ارسال پیام
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // فاصله از پایین برای منوی شناور
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: messageController,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => sendMessage(),
+                    decoration: InputDecoration(
+                      hintText: 'پیام خود را بنویسید...',
+                      filled: true,
+                      fillColor: Theme.of(context).cardColor,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF8B5CF6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: isLoading ? null : sendMessage,
+                    icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
