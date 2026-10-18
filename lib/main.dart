@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // کنترلر مرکزی برای تم (روشن / تاریک)
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
@@ -43,7 +42,7 @@ class MyApp extends StatelessWidget {
     );
   }
 
-  // ☀️ تم روشن (روشن، تمیز، با سایه‌های نرم)
+  // ☀️ تم روشن
   ThemeData _buildLightTheme() {
     return ThemeData(
       useMaterial3: true,
@@ -52,7 +51,6 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: const Color(0xFFF4F7FB),
-      textTheme: GoogleFonts.vazirmatnTextTheme(ThemeData.light().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -76,7 +74,7 @@ class MyApp extends StatelessWidget {
     );
   }
 
-  // 🌙 تم تاریک (تیره، لاکچری، با کنتراست بالا)
+  // 🌙 تم تاریک
   ThemeData _buildDarkTheme() {
     return ThemeData(
       useMaterial3: true,
@@ -85,7 +83,6 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: const Color(0xFF0F172A),
-      textTheme: GoogleFonts.vazirmatnTextTheme(ThemeData.dark().textTheme),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -188,7 +185,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// ویجت مشترک برای نمایش کد (شبیه VS Code)
+// ویجت مشترک برای نمایش کد
 // ---------------------------------------------------------------------------
 class CodeViewer extends StatelessWidget {
   final String code;
@@ -346,7 +343,7 @@ export default {
         ]
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // فاصله از پایین برای منوی شناور
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), 
         child: Column(children: [
           Card(
             child: Padding(
